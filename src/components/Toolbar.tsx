@@ -26,6 +26,7 @@ export function Toolbar({ visibleFiles }: ToolbarProps) {
   const clearCopyState = useUIStore((s) => s.clearCopyState);
   const files = useUIStore((s) => s.files);
   const datedSubfolders = useUIStore((s) => s.datedSubfolders);
+  const datedSubfolderFormat = useUIStore((s) => s.datedSubfolderFormat);
 
   // Active filter count (for badge)
   const showOnlyUntransferred = useUIStore((s) => s.showOnlyUntransferred);
@@ -73,6 +74,7 @@ export function Toolbar({ visibleFiles }: ToolbarProps) {
     try {
       await api.copyFiles(selectedFiles, destination, {
         datedSubfolders,
+        datedSubfolderFormat,
         overwriteExisting: false,
       });
     } catch {

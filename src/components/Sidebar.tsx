@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { DragRegion } from "./DragRegion";
 import { FolderSelector } from "./FolderSelector";
 import { FolderPairHistory } from "./FolderPairHistory";
+import { ScanOptions } from "./ScanOptions";
 import { useUIStore } from "@/store/uiStore";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -41,7 +42,7 @@ export function Sidebar({ darkMode, onToggleDark }: SidebarProps) {
   }
 
   return (
-    <aside className="w-[220px] shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border h-full select-none">
+    <aside className="w-[260px] shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border h-full select-none">
       {/* Titlebar drag region */}
       <DragRegion className="h-[38px] flex items-center justify-between pl-20 pr-3 shrink-0">
         <span className="text-sm font-semibold tracking-tight text-sidebar-foreground/80 pointer-events-none">
@@ -82,6 +83,8 @@ export function Sidebar({ darkMode, onToggleDark }: SidebarProps) {
           />
           {scanInProgress ? "Scanning…" : "Scan"}
         </Button>
+
+        <ScanOptions />
 
         <div className="border-t border-sidebar-border" />
 

@@ -4,7 +4,7 @@ import { X, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useUIStore } from "@/store/uiStore";
 import { cn } from "@/lib/utils";
-import type { CompareMode } from "@/types";
+import { DatedSubfolderFormat } from "./DatedSubfolderFormat";
 
 interface SettingsPanelProps {
   open: boolean;
@@ -30,8 +30,6 @@ export function SettingsPanel({ open, onClose, triggerRef }: SettingsPanelProps)
   }, [open, triggerRef]);
 
   const panelRef = useRef<HTMLDivElement>(null);
-  const compareMode = useUIStore((s) => s.compareMode);
-  const setCompareMode = useUIStore((s) => s.setCompareMode);
   const showOnlyUntransferred = useUIStore((s) => s.showOnlyUntransferred);
   const setShowOnlyUntransferred = useUIStore((s) => s.setShowOnlyUntransferred);
   const datedSubfolders = useUIStore((s) => s.datedSubfolders);
@@ -55,19 +53,6 @@ export function SettingsPanel({ open, onClose, triggerRef }: SettingsPanelProps)
   }, [open, onClose]);
 
   if (!open || !pos) return null;
-
-  const modes: { value: CompareMode; label: string; desc: string }[] = [
-    {
-      value: "everywhere",
-      label: "Anywhere in tree",
-      desc: "A file is considered transferred if its name appears anywhere in the destination, including subfolders.",
-    },
-    {
-      value: "topLevel",
-      label: "Top folder only",
-      desc: "Only check files directly inside the destination folder; ignore subfolders.",
-    },
-  ];
 
   return createPortal(
     <>
@@ -109,50 +94,6 @@ export function SettingsPanel({ open, onClose, triggerRef }: SettingsPanelProps)
       </div>
 
       <div className="p-4 space-y-5 max-h-[480px] overflow-y-auto">
-        {/* Scan section */}
-        <Section title="Scan">
-          <div className="space-y-1">
-            <label className="text-xs font-medium text-foreground select-none">
-              Compare mode
-            </label>
-            <div className="space-y-1">
-              {modes.map((m) => (
-                <button
-                  key={m.value}
-                  onClick={() => setCompareMode(m.value)}
-                  className={cn(
-                    "w-full text-left rounded-md border px-2.5 py-1.5 transition-colors",
-                    compareMode === m.value
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:bg-accent"
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={cn(
-                        "h-3 w-3 rounded-full border shrink-0 flex items-center justify-center",
-                        compareMode === m.value
-                          ? "border-primary"
-                          : "border-input"
-                      )}
-                    >
-                      {compareMode === m.value && (
-                        <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                      )}
-                    </span>
-                    <span className="text-xs font-medium text-foreground">
-                      {m.label}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground/80 leading-tight mt-1 ml-5">
-                    {m.desc}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-        </Section>
-
         {/* Filter section */}
         <Section title="Filter">
           <ToggleField
@@ -201,10 +142,11 @@ export function SettingsPanel({ open, onClose, triggerRef }: SettingsPanelProps)
         <Section title="Transfer">
           <ToggleField
             label="Dated subfolders"
-            hint="Place each file in a folder named MM-DD-YYYY by its modified date"
+            hint="Place each file in a subfolder named after its modified date"
             checked={datedSubfolders}
             onChange={setDatedSubfolders}
           />
+          {datedSubfolders && <DatedSubfolderFormat />}
         </Section>
       </div>
       </div>

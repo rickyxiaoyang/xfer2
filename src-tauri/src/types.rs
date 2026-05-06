@@ -37,6 +37,8 @@ pub enum CompareMode {
 #[serde(rename_all = "camelCase")]
 pub struct CopyOptions {
     pub dated_subfolders: bool,
+    #[serde(default)]
+    pub dated_subfolder_format: Option<String>,
     pub overwrite_existing: bool,
 }
 

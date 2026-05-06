@@ -19,6 +19,7 @@ export type CompareMode = "everywhere" | "topLevel";
 
 export interface CopyOptions {
   datedSubfolders: boolean;
+  datedSubfolderFormat?: string;
   overwriteExisting: boolean;
 }
 

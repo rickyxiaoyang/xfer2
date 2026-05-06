@@ -12,7 +12,7 @@ node_modules
 .pnp
 .pnp.js
 
-# Vite / frontend build output
+# Vite / frontend build output, Make archive output
 dist
 dist-ssr
 *.local

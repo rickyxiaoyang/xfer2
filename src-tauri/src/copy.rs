@@ -1,4 +1,5 @@
 use anyhow::Result;
+use chrono::{DateTime, Datelike, Local, TimeZone, Utc};
 use std::{
     path::{Path, PathBuf},
     sync::{
@@ -9,6 +10,84 @@ use std::{
 };
 use tauri::{AppHandle, Emitter};
 use tokio::sync::{Mutex, Semaphore};
+
+const DEFAULT_DATED_FORMAT: &str = "{month}-{day}-{year}";
+
+/// Substitute the supported `{token}` variables in `format` with values from the
+/// given local-time `dt`, then strip path-illegal characters (preserving `/` so
+/// users can opt into nested folders). Empty results fall back to the default.
+fn apply_format<Tz: TimeZone>(format: &str, dt: &DateTime<Tz>) -> String
+where
+    Tz::Offset: std::fmt::Display,
+{
+    let year = dt.year();
+    let month = dt.month() as u8;
+    let day = dt.day() as u8;
+    let yy = (year.rem_euclid(100)) as u8;
+
+    let month_name = match month {
+        1 => "January", 2 => "February", 3 => "March", 4 => "April",
+        5 => "May", 6 => "June", 7 => "July", 8 => "August",
+        9 => "September", 10 => "October", 11 => "November", 12 => "December",
+        _ => "",
+    };
+    let month_short = match month {
+        1 => "Jan", 2 => "Feb", 3 => "Mar", 4 => "Apr",
+        5 => "May", 6 => "Jun", 7 => "Jul", 8 => "Aug",
+        9 => "Sep", 10 => "Oct", 11 => "Nov", 12 => "Dec",
+        _ => "",
+    };
+    let weekday = dt.weekday();
+    let weekday_full = match weekday.num_days_from_sunday() {
+        0 => "Sunday", 1 => "Monday", 2 => "Tuesday", 3 => "Wednesday",
+        4 => "Thursday", 5 => "Friday", 6 => "Saturday",
+        _ => "",
+    };
+    let weekday_abbrev = match weekday.num_days_from_sunday() {
+        0 => "Sun", 1 => "Mon", 2 => "Tue", 3 => "Wed",
+        4 => "Thu", 5 => "Fri", 6 => "Sat",
+        _ => "",
+    };
+
+    let mut out = format.to_string();
+    let pairs: [(&str, String); 8] = [
+        ("{year}", format!("{:04}", year)),
+        ("{yy}", format!("{:02}", yy)),
+        ("{month}", format!("{:02}", month)),
+        ("{month_name}", month_name.to_string()),
+        ("{month_short}", month_short.to_string()),
+        ("{day}", format!("{:02}", day)),
+        ("{weekday}", weekday_full.to_string()),
+        ("{weekday_short}", weekday_abbrev.to_string()),
+    ];
+    for (token, value) in &pairs {
+        out = out.replace(token, value);
+    }
+
+    // Strip illegal path characters (keep `/` for nested folders).
+    let cleaned: String = out
+        .chars()
+        .filter(|c| !matches!(c, '<' | '>' | ':' | '"' | '\\' | '|' | '?' | '*'))
+        .collect();
+
+    let trimmed = cleaned.trim().trim_matches('/').to_string();
+    if trimmed.is_empty() {
+        // Recurse once with the default format; default has no illegal chars.
+        return apply_format(DEFAULT_DATED_FORMAT, dt);
+    }
+    trimmed
+}
+
+/// Resolve the configured dated-subfolder format against a UTC timestamp,
+/// converting to local time first so folder names match the user's calendar day.
+fn dated_subfolder_name(format: Option<&str>, modified_utc: &DateTime<Utc>) -> String {
+    let fmt = format
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_DATED_FORMAT);
+    let local: DateTime<Local> = modified_utc.with_timezone(&Local);
+    apply_format(fmt, &local)
+}
 
 use crate::types::{
     CopyCompletePayload, CopyError, CopyFileDonePayload, CopyFileErrorPayload, CopyOptions,
@@ -207,7 +286,8 @@ pub async fn copy_files(
 
             // Compute destination path
             let dest_dir = if opts.dated_subfolders {
-                let date_str = file.modified.format("%m-%d-%Y").to_string();
+                let date_str =
+                    dated_subfolder_name(opts.dated_subfolder_format.as_deref(), &file.modified);
                 dest_root.join(date_str)
             } else {
                 dest_root.clone()
@@ -317,4 +397,86 @@ fn num_cpus() -> usize {
     std::thread::available_parallelism()
         .map(|n| n.get())
         .unwrap_or(4)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    fn dt() -> DateTime<chrono::FixedOffset> {
+        // Wed, May 6 2026 10:30:00 UTC
+        chrono::FixedOffset::east_opt(0)
+            .unwrap()
+            .with_ymd_and_hms(2026, 5, 6, 10, 30, 0)
+            .unwrap()
+    }
+
+    #[test]
+    fn default_format_matches_legacy() {
+        assert_eq!(apply_format("{month}-{day}-{year}", &dt()), "05-06-2026");
+    }
+
+    #[test]
+    fn iso_preset() {
+        assert_eq!(apply_format("{year}-{month}-{day}", &dt()), "2026-05-06");
+    }
+
+    #[test]
+    fn nested_preset_preserves_slashes() {
+        assert_eq!(apply_format("{year}/{month}/{day}", &dt()), "2026/05/06");
+    }
+
+    #[test]
+    fn month_only() {
+        assert_eq!(apply_format("{year}-{month}", &dt()), "2026-05");
+    }
+
+    #[test]
+    fn named_variables() {
+        assert_eq!(
+            apply_format("{year}-{month_short}", &dt()),
+            "2026-May"
+        );
+        assert_eq!(
+            apply_format("{weekday_short} {day}", &dt()),
+            "Wed 06"
+        );
+    }
+
+    #[test]
+    fn illegal_chars_stripped() {
+        // Colons, asterisks, etc. should be removed; the rest stays.
+        assert_eq!(apply_format("{year}:{month}*", &dt()), "202605");
+    }
+
+    #[test]
+    fn empty_format_falls_back_to_default() {
+        assert_eq!(apply_format("", &dt()), "05-06-2026");
+    }
+
+    #[test]
+    fn format_of_only_illegal_chars_falls_back() {
+        assert_eq!(apply_format("***", &dt()), "05-06-2026");
+    }
+
+    #[test]
+    fn yy_token() {
+        assert_eq!(apply_format("{yy}", &dt()), "26");
+    }
+
+    #[test]
+    fn dated_subfolder_name_handles_none() {
+        let utc = Utc.with_ymd_and_hms(2026, 5, 6, 10, 30, 0).unwrap();
+        // Passing None must not panic and must produce a non-empty name.
+        let out = dated_subfolder_name(None, &utc);
+        assert!(!out.is_empty());
+    }
+
+    #[test]
+    fn dated_subfolder_name_handles_empty_string() {
+        let utc = Utc.with_ymd_and_hms(2026, 5, 6, 10, 30, 0).unwrap();
+        let out = dated_subfolder_name(Some(""), &utc);
+        assert!(!out.is_empty());
+    }
 }

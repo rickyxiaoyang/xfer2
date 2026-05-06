@@ -19,6 +19,8 @@ interface UIStore {
   setShowOnlyUntransferred: (v: boolean) => void;
   datedSubfolders: boolean;
   setDatedSubfolders: (v: boolean) => void;
+  datedSubfolderFormat: string;
+  setDatedSubfolderFormat: (v: string) => void;
 
   // Filters
   filterExtensions: string;          // raw input string e.g. "jpg, png, raw"
@@ -74,10 +76,12 @@ export const useUIStore = create<UIStore>()(
 
       compareMode: "everywhere",
       setCompareMode: (m) => set({ compareMode: m }),
-      showOnlyUntransferred: false,
+      showOnlyUntransferred: true,
       setShowOnlyUntransferred: (v) => set({ showOnlyUntransferred: v }),
       datedSubfolders: false,
       setDatedSubfolders: (v) => set({ datedSubfolders: v }),
+      datedSubfolderFormat: "{month}-{day}-{year}",
+      setDatedSubfolderFormat: (v) => set({ datedSubfolderFormat: v }),
 
       filterExtensions: "",
       setFilterExtensions: (v) => set({ filterExtensions: v }),
@@ -90,7 +94,7 @@ export const useUIStore = create<UIStore>()(
           filterExtensions: "",
           filterDateAfter: null,
           filterDateBefore: null,
-          showOnlyUntransferred: false,
+          showOnlyUntransferred: true,
         }),
 
       sortField: "name",
@@ -145,7 +149,7 @@ export const useUIStore = create<UIStore>()(
     }),
     {
       name: "xfer-ui",
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       // Only persist stable settings — not transient state, selections, or
       // the file list. Selected paths and scan results are session-scoped.
@@ -155,6 +159,7 @@ export const useUIStore = create<UIStore>()(
         compareMode: state.compareMode,
         showOnlyUntransferred: state.showOnlyUntransferred,
         datedSubfolders: state.datedSubfolders,
+        datedSubfolderFormat: state.datedSubfolderFormat,
         filterExtensions: state.filterExtensions,
         filterDateAfter: state.filterDateAfter,
         filterDateBefore: state.filterDateBefore,
