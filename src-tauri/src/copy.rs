@@ -78,6 +78,39 @@ where
     trimmed
 }
 
+/// Turn a write/create error into a user-facing message, with a macOS-specific
+/// hint when the OS denied permission (the common case for external/network
+/// volumes gated behind Privacy & Security → Files and Folders).
+fn permission_hint(path: &Path, e: &std::io::Error) -> String {
+    if e.kind() == std::io::ErrorKind::PermissionDenied {
+        format!(
+            "Cannot write to {} — permission denied. On macOS, grant this app access under \
+             System Settings → Privacy & Security → Files and Folders (or Full Disk Access), \
+             and check the volume isn't read-only.",
+            path.display()
+        )
+    } else {
+        format!("Cannot write to {}: {}", path.display(), e)
+    }
+}
+
+/// Fail fast if the destination root isn't writable, so a permission problem
+/// surfaces once — clearly — instead of as an identical error per file.
+/// Ensures the root exists, then creates and removes a probe file inside it.
+async fn preflight_writable(destination: &Path) -> Result<(), String> {
+    if let Err(e) = tokio::fs::create_dir_all(destination).await {
+        return Err(permission_hint(destination, &e));
+    }
+    let probe = destination.join(format!(".xfer-write-test-{}", std::process::id()));
+    match tokio::fs::File::create(&probe).await {
+        Ok(_) => {
+            let _ = tokio::fs::remove_file(&probe).await;
+            Ok(())
+        }
+        Err(e) => Err(permission_hint(destination, &e)),
+    }
+}
+
 /// Resolve the configured dated-subfolder format against a UTC timestamp,
 /// converting to local time first so folder names match the user's calendar day.
 fn dated_subfolder_name(format: Option<&str>, modified_utc: &DateTime<Utc>) -> String {
@@ -216,6 +249,40 @@ pub async fn copy_files(
 ) -> Result<CopyResult> {
     let start = Instant::now();
     let total = files.len() as u64;
+
+    // Pre-flight: bail out with a single clear error if the destination root
+    // isn't writable, rather than emitting the same permission failure for
+    // every file once the copy loop starts.
+    if let Err(msg) = preflight_writable(&destination).await {
+        let dest_str = destination.display().to_string();
+        let _ = app.emit(
+            "copy:file-error",
+            CopyFileErrorPayload {
+                path: dest_str.clone(),
+                error: msg.clone(),
+            },
+        );
+        let errors = vec![CopyError {
+            path: dest_str,
+            error: msg,
+        }];
+        let duration_ms = start.elapsed().as_millis() as u64;
+        app.emit(
+            "copy:complete",
+            CopyCompletePayload {
+                succeeded: 0,
+                failed: total,
+                duration_ms,
+                errors: errors.clone(),
+            },
+        )?;
+        return Ok(CopyResult {
+            succeeded: 0,
+            failed: total,
+            duration_ms,
+            errors,
+        });
+    }
 
     let bytes_total: u64 = files.iter().map(|f| f.size).sum();
     let bytes_copied = Arc::new(AtomicU64::new(0));
