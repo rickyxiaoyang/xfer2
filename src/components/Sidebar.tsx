@@ -7,6 +7,7 @@ import { ScanOptions } from "./ScanOptions";
 import { useUIStore } from "@/store/uiStore";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { isMac } from "@/lib/platform";
 
 interface SidebarProps {
   darkMode: boolean;
@@ -43,10 +44,18 @@ export function Sidebar({ darkMode, onToggleDark }: SidebarProps) {
 
   return (
     <aside className="w-[260px] shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border h-full select-none">
-      {/* Titlebar drag region */}
-      <DragRegion className="h-[38px] flex items-center justify-between pl-20 pr-3 shrink-0">
+      {/* Titlebar drag region. On macOS the overlay titlebar puts the traffic
+          lights top-left, so we offset with pl-20 and show the app name. On
+          Windows the native title bar already shows controls + title, so use
+          normal padding and drop the duplicate label. */}
+      <DragRegion
+        className={cn(
+          "h-[38px] flex items-center justify-between pr-3 shrink-0",
+          isMac ? "pl-20" : "pl-3"
+        )}
+      >
         <span className="text-sm font-semibold tracking-tight text-sidebar-foreground/80 pointer-events-none">
-          xfer
+          {isMac ? "xfer" : ""}
         </span>
         <button
           data-no-drag

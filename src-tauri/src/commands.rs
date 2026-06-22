@@ -84,13 +84,43 @@ pub async fn copy_files(
         .map_err(|e| e.to_string())
 }
 
+/// Reveal a file in the OS file manager, selecting it. Command name is kept as
+/// `show_in_finder` for frontend compatibility even though it's cross-platform.
 #[tauri::command]
 pub async fn show_in_finder(path: String) -> Result<(), String> {
-    std::process::Command::new("open")
-        .arg("-R")
-        .arg(&path)
-        .spawn()
-        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("-R")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // `explorer /select,<path>` highlights the file in a new Explorer
+        // window. Note: explorer.exe returns a non-zero exit code even on
+        // success, so we only surface failures to *launch* the process.
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{}", path))
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        // Linux fallback: open the containing directory.
+        let dir = std::path::Path::new(&path)
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| std::path::PathBuf::from(&path));
+        std::process::Command::new("xdg-open")
+            .arg(dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+
     Ok(())
 }
 

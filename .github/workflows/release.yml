@@ -1,0 +1,60 @@
+name: Release
+
+# Build installers for each platform and attach them to the GitHub release
+# for the pushed tag. macOS is built on macOS, Windows on Windows (Tauri can't
+# cross-compile a Windows installer from a Mac). Both are unsigned.
+on:
+  push:
+    tags:
+      - "v*"
+
+# tauri-action creates/updates the release, so it needs write access to contents.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: ""
+          - platform: windows-latest
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Reuse the release the tag already created (or create it if missing),
+          # then upload this platform's bundles to it.
+          tagName: ${{ github.ref_name }}
+          releaseName: "xfer ${{ github.ref_name }}"
+          releaseBody: "See the assets below to download and install."
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

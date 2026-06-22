@@ -2,7 +2,7 @@ import { X, ChevronDown, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useUIStore } from "@/store/uiStore";
 import { api } from "@/lib/api";
-import { formatBytes, cn } from "@/lib/utils";
+import { formatBytes, cn, basename } from "@/lib/utils";
 
 export function CopyProgressBar() {
   const copyInProgress = useUIStore((s) => s.copyInProgress);
@@ -24,7 +24,7 @@ export function CopyProgressBar() {
       } else {
         groups.set(e.error, {
           error: e.error,
-          sampleName: e.path.split("/").pop() ?? e.path,
+          sampleName: basename(e.path),
           count: 1,
         });
       }

@@ -3,6 +3,7 @@ import { useUIStore } from "@/store/uiStore";
 import { Tooltip } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { formatBytes, formatDate, cn } from "@/lib/utils";
+import { isWindows } from "@/lib/platform";
 import type { FileEntry } from "@/types";
 import type { CSSProperties, MouseEvent } from "react";
 
@@ -90,7 +91,7 @@ export function FileRow({ file, style, showRelativePath, onSelect }: FileRowProp
           data-no-row-click
           className="shrink-0 w-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
         >
-          <Tooltip content="Show in Finder">
+          <Tooltip content={isWindows ? "Show in Explorer" : "Show in Finder"}>
             <button
               onClick={(e) => {
                 e.stopPropagation();

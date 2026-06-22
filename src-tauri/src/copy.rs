@@ -83,11 +83,20 @@ where
 /// volumes gated behind Privacy & Security → Files and Folders).
 fn permission_hint(path: &Path, e: &std::io::Error) -> String {
     if e.kind() == std::io::ErrorKind::PermissionDenied {
+        #[cfg(target_os = "macos")]
+        let hint = "On macOS, grant this app access under System Settings → \
+                    Privacy & Security → Files and Folders (or Full Disk Access), \
+                    and check the volume isn't read-only.";
+        #[cfg(target_os = "windows")]
+        let hint = "Check the folder isn't read-only, that you have write permission, \
+                    and that it isn't open in another program.";
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        let hint = "Check you have write permission for this folder and that it isn't read-only.";
+
         format!(
-            "Cannot write to {} — permission denied. On macOS, grant this app access under \
-             System Settings → Privacy & Security → Files and Folders (or Full Disk Access), \
-             and check the volume isn't read-only.",
-            path.display()
+            "Cannot write to {} — permission denied. {}",
+            path.display(),
+            hint
         )
     } else {
         format!("Cannot write to {}: {}", path.display(), e)

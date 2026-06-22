@@ -40,5 +40,7 @@ export function formatRelativeTime(iso: string): string {
 }
 
 export function basename(path: string): string {
-  return path.split("/").pop() ?? path;
+  // Split on both POSIX (/) and Windows (\) separators so this works for
+  // paths coming from either backend.
+  return path.split(/[/\\]/).pop() ?? path;
 }
