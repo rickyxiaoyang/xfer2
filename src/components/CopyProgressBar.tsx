@@ -1,5 +1,5 @@
 import { X, ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useUIStore } from "@/store/uiStore";
 import { api } from "@/lib/api";
 import { formatBytes, cn } from "@/lib/utils";
@@ -9,6 +9,28 @@ export function CopyProgressBar() {
   const copyProgress = useUIStore((s) => s.copyProgress);
   const copyErrors = useUIStore((s) => s.copyErrors);
   const [errorsExpanded, setErrorsExpanded] = useState(false);
+
+  // Collapse identical error messages into one row with a count, so a single
+  // root-cause (e.g. a permission-denied destination) doesn't spam N rows.
+  const groupedErrors = useMemo(() => {
+    const groups = new Map<
+      string,
+      { error: string; sampleName: string; count: number }
+    >();
+    for (const e of copyErrors) {
+      const existing = groups.get(e.error);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        groups.set(e.error, {
+          error: e.error,
+          sampleName: e.path.split("/").pop() ?? e.path,
+          count: 1,
+        });
+      }
+    }
+    return Array.from(groups.values());
+  }, [copyErrors]);
 
   const showProgress = copyInProgress && copyProgress;
   const showErrors = !copyInProgress && copyErrors.length > 0;
@@ -75,10 +97,14 @@ export function CopyProgressBar() {
           </button>
           {errorsExpanded && (
             <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
-              {copyErrors.map((e, i) => (
+              {groupedErrors.map((g, i) => (
                 <div key={i} className="text-[10px] text-destructive/80">
-                  <span className="font-medium">{e.path.split("/").pop()}</span>
-                  <span className="text-muted-foreground ml-1">{e.error}</span>
+                  {g.count > 1 ? (
+                    <span className="font-medium">{g.count} files</span>
+                  ) : (
+                    <span className="font-medium">{g.sampleName}</span>
+                  )}
+                  <span className="text-muted-foreground ml-1">{g.error}</span>
                 </div>
               ))}
             </div>
